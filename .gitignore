@@ -1,0 +1,10 @@
+.idea
+bin
+obj
+*.min.css
+*.min.js
+*.user
+__pycache__
+/Notes
+/__pycache__
+/.pynb_checkpoints
