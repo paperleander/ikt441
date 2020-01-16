@@ -16,31 +16,27 @@ In this task you are suppose to implement 2 types of multilayer Perceptrons:
 """
 
 import math
-import sys
 import random
 
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
 from sklearn.model_selection import train_test_split
 
-sns.set()
-sns.set_style("whitegrid")
 
 df = pd.read_table("data/ecoli.data",
                    header=None,
                    delim_whitespace=True,
                    names=["seq", "mcg", "gvh", "lip", "chg", "aac", "alm1", "alm2", "label"])
 
-df.hist(figsize=(15, 12))
+# df.hist(figsize=(15, 12))
 # plt.show()
 
 df_clean = df[(df.label == "im") | (df.label == "cp")]
 # print(df_clean)
 
 X = df_clean.drop(['label', 'seq'], axis=1).to_numpy()
-y = df_clean.label.replace({'cp': 1, 'im': 2}).to_numpy()
+y = df_clean.label.replace({'cp': 0, 'im': 1}).to_numpy()
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=True, random_state=42)
 
@@ -74,7 +70,8 @@ def second_layer(row, weights):
     activation_3 += weights[11] * row[0]
     activation_3 += weights[12] * row[1]
     activation_3 += weights[13] * row[2]
-    return sigmoid(activation_3)
+    return 1 if activation_3 > 0 else 0
+    # return sigmoid(activation_3)
 
 
 def predict(row, weights):
@@ -83,17 +80,18 @@ def predict(row, weights):
     return fl, sl
 
 
-def train_weights(train, learningrate, epochs):
+def train_weights(train, Y, learningrate, epochs):
     weights = [random.uniform(-1, 1) for _ in range(len(train[0]) + 7)]
-    # plus 6 because of 3 extra weights at first layer and 4 extra weights at second layer
-    last_error = 0.0
+    df_epochs = []
+    errors = []
+    # plus 7 because of 3 extra weights at first layer and 4 extra weights at second layer
     for epoch in range(epochs):
         sum_error = 0.0
-        for row in train:
-            _first_layer, prediction = predict(row, weights)
-            error = row[-1] - prediction
-            # print(error)
-            sum_error += error ** 2  # abs(error)#math.abs(error)#**2**0.5
+        for row, y in zip(train, Y):
+            _first_layer, _prediction = predict(row, weights)
+            error = y - _prediction
+
+            sum_error += error ** 2
 
             # First layer
             weights[0] = weights[0] + learningrate * error
@@ -115,16 +113,33 @@ def train_weights(train, learningrate, epochs):
             weights[12] = weights[12] + learningrate * error * _first_layer[1]
             weights[13] = weights[13] + learningrate * error * _first_layer[2]
 
-            # for i in range(len(row)-1):
-            #    weights[i+1] = weights[i+1] + learningrate*error*row[i]
-        if epoch % 100 == 0 or (last_error != sum_error):
+        if epoch % 100 == 0:
             print("Epoch " + str(epoch) + " Learning rate " + str(learningrate) + " Error " + str(sum_error))
-        last_error = sum_error
-    return weights
+
+        errors.append(sum_error)
+        df_epochs.append(epoch)
+
+    return df_epochs, errors, weights
 
 
-learningrate = 0.0001
+learningrate = 0.001
 epochs = 10000
 
-train_weights = train_weights(X_train, learningrate, epochs)
+df_epochs, errors, train_weights = train_weights(X_train, y_train, learningrate, epochs)
 print("Weights:", train_weights)
+
+accuracies = 0
+for x, y in zip(X_test, y_test):
+    _, prediction = predict(x, train_weights)
+    accuracies += 1 if prediction == y else 0
+    # print("Expected vs Real:", y, prediction)
+
+accuracy = float(accuracies/len(X_test) * 100)
+print("Accuracy", accuracy)
+
+plt.plot(df_epochs, errors)
+title = "Sum of errors over " + str(epochs) + " epochs with " + str(learningrate) + " learningrate"
+plt.title(title)
+plt.xlabel("Epochs")
+plt.ylabel("Error")
+plt.show()
