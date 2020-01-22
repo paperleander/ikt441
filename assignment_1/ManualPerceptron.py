@@ -123,7 +123,7 @@ def train_weights(train, Y, learningrate, epochs):
 
 
 learningrate = 0.001
-epochs = 10000
+epochs = 1000
 
 df_epochs, errors, train_weights = train_weights(X_train, y_train, learningrate, epochs)
 print("Weights:", train_weights)
