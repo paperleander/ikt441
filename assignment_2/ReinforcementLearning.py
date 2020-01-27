@@ -16,11 +16,6 @@ You can choose to use the same class for both agents if you desire to do so.
 http://www.andrew.cmu.edu/course/10-703/textbook/BartoSutton.pdf
 """
 
-############################################################
-# Hva med å bare bruke openAi sine "Gyms" som Environment? #
-# env = gym.make('CartPole-v0')                            #
-# https://pylessons.com/CartPole-reinforcement-learning/   #
-############################################################
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -31,18 +26,30 @@ results = []  # Record results in this list
 
 class Environment:
     def __init__(self):
-        # Define objects here, such as map.. etc
-        pass
+        self.state = 5
+        self.start = 5
+        self.goal = 10
+        self.reward = -1
 
-    def step(self, action):
-        # Code the game logic here
-        # return self.render()
-        pass
+    def step(self, _action):
+        _terminal = False
+        _reward = self.reward
+        if _action == ACTION_LEFT:
+            if self.state > 1:
+                self.state -= 1
+        if _action == ACTION_RIGHT:
+            if self.state < 10:
+                self.state += 1
+
+        if self.state == self.goal:
+            _terminal = True
+            _reward = 100
+
+        return self.state, _reward, _terminal
 
     def reset(self):
-        # Code a reset function here
-        # return self.render()
-        pass
+        self.state = self.start
+        return self.state
 
     def render(self, mode='human', close=False):
         pass
@@ -51,45 +58,63 @@ class Environment:
 
 class Agent:
     def __init__(self, lr, discount):
-        self.use = False  # TODO - Set this to true if you implement here
-
-    def learn(self, s, a, r, s1, t):
-        pass
+        self.lr = lr
+        self.discount = discount
+        self.use = False
+        self.Q = np.zeros((STATES, len(ACTIONS)))
 
     def predict(self, s):
-        pass
-        # return action # Return the action here
+        if np.random.binomial(1, EPSILON) == 1:
+            return np.random.choice(ACTIONS)
+        else:
+            values_ = self.Q[s, :]
+            # return np.argmax(values_)
+            return np.random.choice([action_ for action_, value_ in enumerate(values_) if value_ == np.max(values_)])
 
 
 class SarsaAgent(Agent):
     def __init__(self, lr, discount):
         super().__init__(lr, discount)
-        self.use = False  # TODO - Set this to true if you implement here
+        self.use = True
+        self.name = "SARSA"
+
+    def learn(self, s, a, r, s1, a1):
+        self.Q[s, a] += ALPHA * (r + self.Q[s1, a1] - self.Q[s, a])
 
 
 class QLearningAgent(Agent):
     def __init__(self, lr, discount):
         super().__init__(lr, discount)
-        self.use = False  # TODO - Set this to true if you implement here
+        self.use = True
+        self.name = "Q_LEARNING"
+
+    def learn(self, s, a, r, s1):
+        self.Q[s, a] += ALPHA * (r + GAMMA * np.max(self.Q[s1, :]) - self.Q[s, a])
 
 
 if __name__ == "__main__":
 
-    EPISODES = 200      # TODO - Set number of episodes here
-    MAX_STEPS = 200     # TODO - Max number of steps per episode
-    LR = 0.2            # TODO - Set the learning rate
-    GAMMA = 0.95        # TODO - Set the discount factor
+    EPISODES = 100      #
+    MAX_STEPS = 100     #
+    LR = 0.2            #
+    GAMMA = 0.95        #
+    EPSILON = 0.1       # Probability for exploration
+    ALPHA = 0.5         # Step size
+
+    STATES = 11
+    ACTION_LEFT = 0
+    ACTION_RIGHT = 1
+    ACTIONS = [ACTION_LEFT, ACTION_RIGHT]
 
     agents = [
         SarsaAgent(LR, GAMMA),
         QLearningAgent(LR, GAMMA),
-        Agent(LR, GAMMA)
+        # Agent(LR, GAMMA)
     ]
 
     for agent in [x for x in agents if x.use]:
 
         # Initialise environment
-        # TODO - Do we need to create a new environment for each agent?
         env = Environment()
 
         for i in range(EPISODES):
@@ -99,19 +124,27 @@ if __name__ == "__main__":
 
             while not terminal and step <= MAX_STEPS:
 
-                # Predict action given state pi(a | s)
+                # Predict/choose action given state pi(a | s)
                 action = agent.predict(state)
 
                 # Let environment transition from s to s' with its Pss' function
-                state1, reward, terminal, _ = env.step(action)
+                state1, reward, terminal = env.step(action)
+                if terminal:
+                    break
 
                 # Update algorithm
-                agent.learn(state, action, reward, state1, terminal)
+                if agent.name == "SARSA":
+                    action1 = agent.predict(state1)
+                    agent.learn(state, action, reward, state1, action1)
+                    action = action1
 
-                # s is now s'
+                if agent.name == "Q_LEARNING":
+                    agent.learn(state, action, reward, state1)
+
+                # state is now the next state
                 state = state1
 
-                # For plotting results
+                # For plotting
                 step += 1
 
             # Record number of steps used for this episode
