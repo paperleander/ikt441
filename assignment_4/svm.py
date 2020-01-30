@@ -19,7 +19,7 @@ y = np.array(y)
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=True, random_state=42)
 
-for i, j in zip(X_train, y_train): print(i, j)
+# for i, j in zip(X_train, y_train): print(i, j)
 
 # clf = SVC(kernel="linear", C=0.025, decision_function_shape='ovo')
 # clf.fit(X_train, y_train)
@@ -29,10 +29,12 @@ names = ["Linear",
          "Sigmoid",
          "SVC"]
 
-classifiers = [SVC(kernel="linear", C=0.025),
-               SVC(kernel="rbf", C=0.025),
-               SVC(kernel="sigmoid", C=0.025),
-               SVC(gamma=2, C=1)]
+# Hyperparameter search on C and Gamma between 2**-3 to 2**7
+# C=128 is max, so might have to do another one with higher values (but it takes a few minutes though)
+classifiers = [SVC(kernel="linear", C=128, gamma=0.125),
+               SVC(kernel="rbf", C=128, gamma=0.25),
+               SVC(kernel="sigmoid", C=0.125, gamma=0.125),
+               ]
 
 for i, cay in enumerate(classifiers):
     start = time.time()
@@ -49,3 +51,5 @@ for i, cay in enumerate(classifiers):
     print("="*30)
     print("")
 
+# GUIDE TO SVM
+# https://www.csie.ntu.edu.tw/~cjlin/papers/guide/guide.pdf
