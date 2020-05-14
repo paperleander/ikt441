@@ -33,25 +33,29 @@ from tensorflow.keras.datasets import fashion_mnist
 
 #TODO:
 
-# Preprocess Fashion-Mnist (Convert CSV to PNGs)
-# Create a dataset with only one category (shoes?)
-# Create more samples (Flip, rotate, skew..)
 # Try dataset with colors
 # Try dataset with higher resolution
+# Create a dataset with only one category (shoes?)
+# Create more samples (Flip, rotate, skew..)
 
 # remove "decisions" and other bloat in setup
 # Why 7*7*256? Experiment with other values
 # Add Height and Width as Configurable values
 
 
+# NOTES:
+# Might want to use Keras own image preprocessing functions
+# when taking in a whole directory of images in png format.
+# see https://keras.io/api/preprocessing/image/.
+
 # Grade system (loosely based on Goodwins feedback)
-# C - Color and medium resolution, with a fully filled in report (Master template)
+# C - Color and medium resolution, with a filled in report (Master template with some text on each chapter)
 # B - High resolution, and proof of concept for further research (place new clothes on models)
 # A - Innovative
 
 
 ### CONFIG ###
-EPOCHS = 100
+EPOCHS = 50 
 noise_dim = 100
 num_examples_to_generate = 12
 
