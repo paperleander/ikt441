@@ -32,17 +32,23 @@ from tensorflow.keras.datasets import fashion_mnist
 
 
 #TODO:
-# remove "decisions" and other bloat in setup
-# Why 7*7*256? Experiment with other values
-# Add Height and Width as Configurable values
 
 # Preprocess Fashion-Mnist (Convert CSV to PNGs)
 # Create a dataset with only one category (shoes?)
 # Create more samples (Flip, rotate, skew..)
-# Convert to grayscale
+# Try dataset with colors
+# Try dataset with higher resolution
 
-# innovatvt gir A
-# 
+# remove "decisions" and other bloat in setup
+# Why 7*7*256? Experiment with other values
+# Add Height and Width as Configurable values
+
+
+# Grade system (loosely based on Goodwins feedback)
+# C - Color and medium resolution, with a fully filled in report (Master template)
+# B - High resolution, and proof of concept for further research (place new clothes on models)
+# A - Innovative
+
 
 ### CONFIG ###
 EPOCHS = 100
@@ -51,6 +57,9 @@ num_examples_to_generate = 12
 
 BUFFER_SIZE = 60000
 BATCH_SIZE = 256
+
+DATA_PATH = "./data"
+IMAGE_PATH = "./imgs"
 
 
 ### INIT ###
@@ -64,13 +73,17 @@ os.mkdir(folder)  # Now we can place images in different folders based on time
 (train_images, train_labels), (_, _) = fashion_mnist.load_data()
 print(train_images.shape)
 
+# Lets try to only train on one category in the fashion mnist dataset
+# (0=Tshirt/top, 1=Trouser, 2=Pullover, 3=Dress, 4=Coat, 5=Sandal, 6=Shirt, 7=Sneaker, 8=Bag, 9=Ankle boot)
+category = 6
 images = []
 for image, label in zip(train_images, train_labels):
-    if label == 0:
+    if label == category:
         images.append(image)
-plt.imshow(images[2])
+plt.imshow(images[0])
 plt.show()
 #sys.exit()
+
 images = np.asarray(images)
 print("Shape:", images.shape)
 train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
@@ -179,6 +192,12 @@ def generate_and_save_images(model, epoch, seed):
 
 
 if __name__ == '__main__':
+
+    # Make sure folders exists
+    if not os.path.exists(DATA_PATH):
+        os.makedir(DATA_PATH)
+    if not os.path.exists(IMAGE_PATH):
+        os.makedir(IMAGE_PATH)
 
     noise = tf.random.normal([1, 100])
     generator = make_generator_model()
