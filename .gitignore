@@ -8,4 +8,5 @@ __pycache__
 /Notes
 /__pycache__
 /.pynb_checkpoints
-/imgs/
+/project/imgs
+/project/training_checkpoints
