@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 import tensorflow as tf
-tf.__version__
+
+print(tf.__version__)
 
 import glob
-import imageio
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -12,6 +12,7 @@ import sys
 import PIL
 import time
 import datetime
+import getpass
 from IPython import display
 
 from tensorflow.keras import Sequential
@@ -30,8 +31,7 @@ from tensorflow.keras.losses import BinaryCrossentropy
 from tensorflow.keras.datasets import mnist
 from tensorflow.keras.datasets import fashion_mnist
 
-
-#TODO:
+# TODO:
 
 # Try dataset with colors
 # Try dataset with higher resolution
@@ -53,9 +53,15 @@ from tensorflow.keras.datasets import fashion_mnist
 # B - High resolution, and proof of concept for further research (place new clothes on models)
 # A - Innovative
 
+# workaround to make cuda work for bao
+user = getpass.getuser()
+if user == "bao":
+    physical_devices = tf.config.experimental.list_physical_devices('GPU')
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
 
 ### CONFIG ###
-EPOCHS = 50 
+EPOCHS = 10000
 noise_dim = 100
 num_examples_to_generate = 12
 
@@ -65,6 +71,11 @@ BATCH_SIZE = 256
 DATA_PATH = "./data"
 IMAGE_PATH = "./imgs"
 
+# Make sure folders exists
+if not os.path.exists(DATA_PATH):
+    os.mkdir(DATA_PATH)
+if not os.path.exists(IMAGE_PATH):
+    os.mkdir(IMAGE_PATH)
 
 ### INIT ###
 seed = tf.random.normal([num_examples_to_generate, noise_dim])
@@ -73,33 +84,32 @@ now = datetime.datetime.now().strftime("%d%H%M")
 folder = os.path.join("imgs", now)
 os.mkdir(folder)  # Now we can place images in different folders based on time
 
-#(train_images, train_labels), (_, _) = mnist.load_data()
+# (train_images, train_labels), (_, _) = mnist.load_data()
 (train_images, train_labels), (_, _) = fashion_mnist.load_data()
 print(train_images.shape)
 
 # Lets try to only train on one category in the fashion mnist dataset
 # (0=Tshirt/top, 1=Trouser, 2=Pullover, 3=Dress, 4=Coat, 5=Sandal, 6=Shirt, 7=Sneaker, 8=Bag, 9=Ankle boot)
-category = 6
+category = [7]
 images = []
 for image, label in zip(train_images, train_labels):
-    if label == category:
+    if label in category:
         images.append(image)
 plt.imshow(images[0])
 plt.show()
-#sys.exit()
 
+# sys.exit()
+images = images
 images = np.asarray(images)
 print("Shape:", images.shape)
 train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
-train_images = (train_images - 127.5) / 127.5 # Normalize the images to [-1, 1]
+train_images = (train_images - 127.5) / 127.5  # Normalize the images to [-1, 1]
 train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
-
-
 
 
 def make_generator_model():
     model = tf.keras.Sequential()
-    model.add(Dense(7*7*256, use_bias=False, input_shape=(100,)))
+    model.add(Dense(7 * 7 * 256, use_bias=False, input_shape=(100,)))
     model.add(BatchNormalization())
     model.add(LeakyReLU())
     model.add(Reshape((7, 7, 256)))
@@ -141,13 +151,13 @@ def generator_loss(fake_output):
 
 
 @tf.function
-def train_step(images):
+def train_step(imgs):
     noise = tf.random.normal([BATCH_SIZE, noise_dim])
 
     with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
         generated_images = generator(noise, training=True)
 
-        real_output = discriminator(images, training=True)
+        real_output = discriminator(imgs, training=True)
         fake_output = discriminator(generated_images, training=True)
 
         gen_loss = generator_loss(fake_output)
@@ -156,10 +166,10 @@ def train_step(images):
     gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
     gradients_of_discriminator = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
 
-    generator_optimizer.apply_gradients(zip(gradients_of_generator, 
-        generator.trainable_variables))
-    discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, 
-        discriminator.trainable_variables))
+    generator_optimizer.apply_gradients(zip(gradients_of_generator,
+                                            generator.trainable_variables))
+    discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator,
+                                                discriminator.trainable_variables))
 
 
 def train(dataset, epochs):
@@ -173,9 +183,9 @@ def train(dataset, epochs):
         generate_and_save_images(generator, epoch + 1, seed)
 
         if (epoch + 1) % 15 == 0:
-            checkpoint.save(file_prefix = checkpoint_prefix)
+            checkpoint.save(file_prefix=checkpoint_prefix)
 
-        print ('Time for epoch {} is {} sec'.format(epoch + 1, time.time()-start))
+        print('Time for epoch {} is {} sec'.format(epoch + 1, time.time() - start))
 
     display.clear_output(wait=True)
     generate_and_save_images(generator, epochs, seed)
@@ -184,29 +194,26 @@ def train(dataset, epochs):
 def generate_and_save_images(model, epoch, seed):
     predictions = model(seed, training=False)
 
-    fig = plt.figure(figsize=(4,3))
+    fig = plt.figure(figsize=(4, 3))
 
     for i in range(predictions.shape[0]):
-        plt.subplot(4, 3, i+1)
+        plt.subplot(4, 3, i + 1)
         plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
         plt.axis('off')
 
     plt.savefig('{}/image_at_epoch_{:04d}.png'.format(folder, epoch))
-    #plt.show()
+    plt.close(fig)
+    # plt.show()
 
 
 if __name__ == '__main__':
 
-    # Make sure folders exists
-    if not os.path.exists(DATA_PATH):
-        os.makedir(DATA_PATH)
-    if not os.path.exists(IMAGE_PATH):
-        os.makedir(IMAGE_PATH)
 
     noise = tf.random.normal([1, 100])
     generator = make_generator_model()
+
     generated_image = generator(noise, training=False)
-    #plt.imshow(generated_image[0, :, :, 0], cmap='gray')
+    # plt.imshow(generated_image[0, :, :, 0], cmap='gray')
 
     discriminator = make_discriminator_model()
     decision = discriminator(generated_image)
@@ -219,10 +226,9 @@ if __name__ == '__main__':
     checkpoint_dir = './training_checkpoints'
     checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
     checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
-                                    discriminator_optimizer=discriminator_optimizer,
-                                    generator=generator,
-                                    discriminator=discriminator)
+                                     discriminator_optimizer=discriminator_optimizer,
+                                     generator=generator,
+                                     discriminator=discriminator)
 
     train(train_dataset, EPOCHS)
     checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
-
