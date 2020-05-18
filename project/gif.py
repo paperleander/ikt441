@@ -10,7 +10,7 @@ image_folder = "imgs"
 def create_gif():
     folders = sorted(os.listdir("{}/".format(image_folder)))
     newest = folders[-1]
-    anim_file = newest + '.gif'
+    anim_file = "gifs/{}.gif".format(newest)
 
     with imageio.get_writer(anim_file, mode='I') as writer:
         filenames = glob.glob('{}/{}/*.png'.format(image_folder, newest))

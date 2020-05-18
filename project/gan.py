@@ -54,47 +54,70 @@ from tensorflow.keras.datasets import fashion_mnist
 # A - Innovative
 
 
+# GPU workaround
+physical_devices = tf.config.experimental.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
+
 ### CONFIG ###
 EPOCHS = 50 
-noise_dim = 100
-num_examples_to_generate = 12
+NOISE_DIM = 100
+NUM_EXAMPLES = 12
 
 BUFFER_SIZE = 60000
 BATCH_SIZE = 256
 
-DATA_PATH = "./data"
-IMAGE_PATH = "./imgs"
+DATA_PATH = "data"
+IMAGE_PATH = "imgs"
 
 
 ### INIT ###
-seed = tf.random.normal([num_examples_to_generate, noise_dim])
-
+seed = tf.random.normal([NUM_EXAMPLES, NOISE_DIM])
 now = datetime.datetime.now().strftime("%d%H%M")
-folder = os.path.join("imgs", now)
-os.mkdir(folder)  # Now we can place images in different folders based on time
+folder = os.path.join(IMAGE_PATH, now)
 
-#(train_images, train_labels), (_, _) = mnist.load_data()
-(train_images, train_labels), (_, _) = fashion_mnist.load_data()
-print(train_images.shape)
+checkpoint_dir = './training_checkpoints'
+checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
 
-# Lets try to only train on one category in the fashion mnist dataset
-# (0=Tshirt/top, 1=Trouser, 2=Pullover, 3=Dress, 4=Coat, 5=Sandal, 6=Shirt, 7=Sneaker, 8=Bag, 9=Ankle boot)
-category = 6
-images = []
-for image, label in zip(train_images, train_labels):
-    if label == category:
-        images.append(image)
-plt.imshow(images[0])
-plt.show()
-#sys.exit()
-
-images = np.asarray(images)
-print("Shape:", images.shape)
-train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
-train_images = (train_images - 127.5) / 127.5 # Normalize the images to [-1, 1]
-train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
+# Make sure folders exists
+if not os.path.exists(folder):
+    os.mkdir(folder)
+if not os.path.exists(DATA_PATH):
+    os.mkdir(DATA_PATH)
+if not os.path.exists(IMAGE_PATH):
+    os.mkdir(IMAGE_PATH)
 
 
+def get_mnist_dataset():
+    print("Getting Mnist dataset...")
+    (images, _), (_, _) = mnist.load_data()
+
+    images = np.asarray(images)
+    print("Number of images:", images.shape)
+    train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
+    train_images = (train_images - 127.5) / 127.5 # Normalize the images to [-1, 1]
+    train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
+    return train_dataset
+
+
+def get_fashion_mnist_dataset():
+    print("Getting Fashion Mnist dataset...")
+    (train_images, train_labels), (_, _) = fashion_mnist.load_data()
+
+    # Lets try to only train on one category in the fashion mnist dataset
+    # (0=Tshirt/top, 1=Trouser, 2=Pullover, 3=Dress, 4=Coat, 5=Sandal, 6=Shirt, 7=Sneaker, 8=Bag, 9=Ankle boot)
+    category = 6
+    images = []
+    for image, label in zip(train_images, train_labels):
+        if label == category:
+            images.append(image)
+
+    images = np.asarray(images)
+    print("Number of images:", images.shape)
+    train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
+    train_images = (train_images - 127.5) / 127.5 # Normalize the images to [-1, 1]
+    train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
+    return train_dataset
 
 
 def make_generator_model():
@@ -142,7 +165,7 @@ def generator_loss(fake_output):
 
 @tf.function
 def train_step(images):
-    noise = tf.random.normal([BATCH_SIZE, noise_dim])
+    noise = tf.random.normal([BATCH_SIZE, NOISE_DIM])
 
     with tf.GradientTape() as gen_tape, tf.GradientTape() as disc_tape:
         generated_images = generator(noise, training=True)
@@ -181,6 +204,29 @@ def train(dataset, epochs):
     generate_and_save_images(generator, epochs, seed)
 
 
+def train_forever(dataset):
+    epoch = 0
+    try:
+        while(True):
+            start = time.time()
+
+            for image_batch in dataset:
+                train_step(image_batch)
+
+            if (epoch + 1) % 10 == 0:
+                checkpoint.save(file_prefix = checkpoint_prefix)
+
+                display.clear_output(wait=True)
+                generate_and_save_images(generator, epoch + 1, seed)
+
+            print ('Time for epoch {} is {} sec'.format(epoch + 1, time.time()-start))
+            epoch += 1
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt. Stopping training.")
+        display.clear_output(wait=True)
+        generate_and_save_images(generator, epoch + 2, seed)
+
+
 def generate_and_save_images(model, epoch, seed):
     predictions = model(seed, training=False)
 
@@ -192,37 +238,29 @@ def generate_and_save_images(model, epoch, seed):
         plt.axis('off')
 
     plt.savefig('{}/image_at_epoch_{:04d}.png'.format(folder, epoch))
+    plt.close(fig)
     #plt.show()
 
 
 if __name__ == '__main__':
 
-    # Make sure folders exists
-    if not os.path.exists(DATA_PATH):
-        os.makedir(DATA_PATH)
-    if not os.path.exists(IMAGE_PATH):
-        os.makedir(IMAGE_PATH)
+    #train_dataset = get_mnist_dataset()
+    train_dataset = get_fashion_mnist_dataset()
 
-    noise = tf.random.normal([1, 100])
-    generator = make_generator_model()
-    generated_image = generator(noise, training=False)
-    #plt.imshow(generated_image[0, :, :, 0], cmap='gray')
-
-    discriminator = make_discriminator_model()
-    decision = discriminator(generated_image)
+    G = make_generator_model()
+    D = make_discriminator_model()
 
     cross_entropy = BinaryCrossentropy(from_logits=True)
 
-    generator_optimizer = Adam(1e-4)
-    discriminator_optimizer = Adam(1e-4)
+    G_optimizer = Adam(1e-4)
+    D_optimizer = Adam(1e-4)
 
-    checkpoint_dir = './training_checkpoints'
-    checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
-    checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
-                                    discriminator_optimizer=discriminator_optimizer,
-                                    generator=generator,
-                                    discriminator=discriminator)
+    checkpoint = tf.train.Checkpoint(generator_optimizer=G_optimizer,
+                                    discriminator_optimizer=D_optimizer,
+                                    generator=G,
+                                    discriminator=D)
 
-    train(train_dataset, EPOCHS)
+    #train(train_dataset, EPOCHS)
+    train_forever(train_dataset)
     checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
 
