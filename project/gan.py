@@ -28,10 +28,15 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import BinaryCrossentropy
 
 from tensorflow.keras.datasets import mnist
+from tensorflow.keras.datasets import cifar10
 from tensorflow.keras.datasets import fashion_mnist
 
 import tensorflow_datasets as tfds
 
+from helper import generate_and_save_images
+from helper import get_dataset
+from models import make_generator
+from models import make_discriminator
 
 #TODO:
 
@@ -88,57 +93,6 @@ if not os.path.exists(DATA_PATH):
     os.mkdir(DATA_PATH)
 if not os.path.exists(IMAGE_PATH):
     os.mkdir(IMAGE_PATH)
-
-
-def get_mnist_dataset():
-    print("Getting Mnist dataset...")
-    (images, _), (_, _) = mnist.load_data()
-
-    images = np.asarray(images)
-    print("Number of images:", images.shape)
-    train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
-    train_images = (train_images - 127.5) / 127.5 # Normalize the images to [-1, 1]
-    train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
-    return train_dataset
-
-
-def get_fashion_mnist_dataset():
-    print("Getting Fashion Mnist dataset...")
-    (train_images, train_labels), (_, _) = fashion_mnist.load_data()
-
-    # Lets try to only train on one category in the fashion mnist dataset
-    # (0=Tshirt/top, 1=Trouser, 2=Pullover, 3=Dress, 4=Coat, 5=Sandal, 6=Shirt, 7=Sneaker, 8=Bag, 9=Ankle boot)
-    category = 6
-    images = []
-    for image, label in zip(train_images, train_labels):
-        if label == category:
-            images.append(image)
-
-    images = np.asarray(images)
-    print("Number of images:", images.shape)
-    train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
-    train_images = (train_images - 127.5) / 127.5 # Normalize the images to [-1, 1]
-    train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
-    return train_dataset
-
-def normalize_img(image, label):
-    """Normalizes images: `uint8` -> `float32`."""
-    return tf.cast(image, tf.float32) - 127.5 /  127.5, label
-
-def get_celeb_a_dataset():
-    print("Getting celeb_a dataset...")
-    #(images, _), (_, _) = mnist.load_data()
-    #(train, _) = tfds.load('mnist', shuffle_files=True)
-
-    data, info = tfds.load('mnist', with_info=True)
-    ds_train = data['train']
-
-    #print("Number of images:", ds_train.shape)
-    #train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
-    #train_images = (train_images - 127.5) / 127.5 # Normalize the images to [-1, 1]
-    #train_dataset = tf.data.Dataset.from_tensor_slices(ds_train).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
-    #return train_dataset
-    return ds_train
 
 
 def make_generator_model():
@@ -248,29 +202,14 @@ def train_forever(dataset):
         generate_and_save_images(generator, epoch + 2, seed)
 
 
-def generate_and_save_images(model, epoch, seed):
-    predictions = model(seed, training=False)
-
-    fig = plt.figure(figsize=(4,4))
-
-    for i in range(predictions.shape[0]):
-        plt.subplot(4, 3, i+1)
-        plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
-        plt.axis('off')
-
-    plt.savefig('{}/image_at_epoch_{:04d}.png'.format(folder, epoch))
-    plt.close(fig)
-    #plt.show()
-
 
 if __name__ == '__main__':
 
-    train_dataset = get_mnist_dataset()
-    #train_dataset = get_fashion_mnist_dataset()
-    #train_dataset = get_celeb_a_dataset()
+    images = get_dataset('mnist')
+    dataset = tf.data.Dataset.from_tensor_slices(images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
 
-    generator = make_generator_model()
-    discriminator = make_discriminator_model()
+    generator       = make_generator_model()
+    discriminator   = make_discriminator_model()
 
     cross_entropy = BinaryCrossentropy(from_logits=True)
 
@@ -281,7 +220,7 @@ if __name__ == '__main__':
                                     discriminator_optimizer=D_optimizer,
                                     generator=generator, discriminator=discriminator)
 
-    #train(train_dataset, EPOCHS)
-    train_forever(train_dataset)
+    #train(dataset, EPOCHS)
+    train_forever(dataset)
     checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
 
