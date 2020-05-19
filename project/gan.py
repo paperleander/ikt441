@@ -30,6 +30,8 @@ from tensorflow.keras.losses import BinaryCrossentropy
 from tensorflow.keras.datasets import mnist
 from tensorflow.keras.datasets import fashion_mnist
 
+import tensorflow_datasets as tfds
+
 
 #TODO:
 
@@ -119,6 +121,25 @@ def get_fashion_mnist_dataset():
     train_dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
     return train_dataset
 
+def normalize_img(image, label):
+    """Normalizes images: `uint8` -> `float32`."""
+    return tf.cast(image, tf.float32) - 127.5 /  127.5, label
+
+def get_celeb_a_dataset():
+    print("Getting celeb_a dataset...")
+    #(images, _), (_, _) = mnist.load_data()
+    #(train, _) = tfds.load('mnist', shuffle_files=True)
+
+    data, info = tfds.load('mnist', with_info=True)
+    ds_train = data['train']
+
+    #print("Number of images:", ds_train.shape)
+    #train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
+    #train_images = (train_images - 127.5) / 127.5 # Normalize the images to [-1, 1]
+    #train_dataset = tf.data.Dataset.from_tensor_slices(ds_train).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
+    #return train_dataset
+    return ds_train
+
 
 def make_generator_model():
     model = tf.keras.Sequential()
@@ -179,9 +200,9 @@ def train_step(images):
     gradients_of_generator = gen_tape.gradient(gen_loss, generator.trainable_variables)
     gradients_of_discriminator = disc_tape.gradient(disc_loss, discriminator.trainable_variables)
 
-    generator_optimizer.apply_gradients(zip(gradients_of_generator, 
+    G_optimizer.apply_gradients(zip(gradients_of_generator, 
         generator.trainable_variables))
-    discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, 
+    D_optimizer.apply_gradients(zip(gradients_of_discriminator, 
         discriminator.trainable_variables))
 
 
@@ -219,7 +240,7 @@ def train_forever(dataset):
                 display.clear_output(wait=True)
                 generate_and_save_images(generator, epoch + 1, seed)
 
-            print ('Time for epoch {} is {} sec'.format(epoch + 1, time.time()-start))
+            print ('Time for epoch {} is {:.4f} sec'.format(epoch + 1, time.time()-start))
             epoch += 1
     except KeyboardInterrupt:
         print("KeyboardInterrupt. Stopping training.")
@@ -230,7 +251,7 @@ def train_forever(dataset):
 def generate_and_save_images(model, epoch, seed):
     predictions = model(seed, training=False)
 
-    fig = plt.figure(figsize=(4,3))
+    fig = plt.figure(figsize=(4,4))
 
     for i in range(predictions.shape[0]):
         plt.subplot(4, 3, i+1)
@@ -244,21 +265,21 @@ def generate_and_save_images(model, epoch, seed):
 
 if __name__ == '__main__':
 
-    #train_dataset = get_mnist_dataset()
-    train_dataset = get_fashion_mnist_dataset()
+    train_dataset = get_mnist_dataset()
+    #train_dataset = get_fashion_mnist_dataset()
+    #train_dataset = get_celeb_a_dataset()
 
-    G = make_generator_model()
-    D = make_discriminator_model()
+    generator = make_generator_model()
+    discriminator = make_discriminator_model()
 
     cross_entropy = BinaryCrossentropy(from_logits=True)
 
     G_optimizer = Adam(1e-4)
     D_optimizer = Adam(1e-4)
 
-    checkpoint = tf.train.Checkpoint(generator_optimizer=G_optimizer,
+    checkpoint = tf.train.Checkpoint(generator_otimizer=G_optimizer,
                                     discriminator_optimizer=D_optimizer,
-                                    generator=G,
-                                    discriminator=D)
+                                    generator=generator, discriminator=discriminator)
 
     #train(train_dataset, EPOCHS)
     train_forever(train_dataset)
