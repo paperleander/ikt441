@@ -32,11 +32,13 @@ from tensorflow.keras.preprocessing import image
 
 #TODO:
 
-# Try dataset with colors (CIFAR10 almost done)
-# Try dataset with higher resolution
-# Create a dataset with only one category (shoes?)
-# Create more samples (Flip, rotate, skew..)
+# Side by Side Comparison
+# Best architecture on 28x28 black/white
+# Colors on 28x28
 
+# Try dataset with colors
+# Try dataset with higher resolution 
+# Load older models
 
 # NOTES:
 # Might want to use Keras own image preprocessing functions
@@ -44,8 +46,8 @@ from tensorflow.keras.preprocessing import image
 # see https://keras.io/api/preprocessing/image/.
 
 # Grade system (loosely based on Goodwins feedback)
-# C - Color and medium resolution, with a filled in report (Master template with some text on each chapter)
-# B - High resolution, and proof of concept for further research (place new clothes on models)
+# C - Color and medium 28, with a filled in report (Master template with some text on each chapter)
+# B - High 28, and proof of concept for further research (place new clothes on models)
 # A - Innovative
 
 
@@ -88,68 +90,73 @@ if not os.path.exists(DATA_PATH):
 if not os.path.exists(IMAGE_PATH):
     os.mkdir(IMAGE_PATH)    
 
-def get_dataset(resolution):
-    shoes_path = "data/fashion-shoes-{}".format(str(resolution))
+
+def get_dataset():
+    shoes_path = "data/fashion-shoes-28"
     shoes = os.listdir(shoes_path)
     images = []
     for k in shoes:
         if k.startswith("."):
             continue
         img_path = os.path.join(shoes_path, k)
-        
-        img = image.load_img(img_path, target_size=(resolution,resolution,1), color_mode="grayscale")
+
+        img = image.load_img(img_path, target_size=(28,28,1), color_mode="grayscale")
         img = image.img_to_array(img)
         images.append(img)
 
     images = np.asarray(images)
-    
+
     print("Number of images:", images.shape)
-    train_images = images.reshape(images.shape[0], resolution, resolution, 1).astype('float32')
+    train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
     train_images = (train_images - 127.5) / 127.5 # Normalize the images to [-1, 1]
     dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
     return dataset
 
-def plot_image(resolution):
-    
-    shoes_path = "data/fashion-shoes-{}".format(str(resolution))
+
+def plot_image():
+    shoes_path = "data/fashion-shoes-28"
     shoes = os.listdir(shoes_path)
-   
+
     img_path = os.path.join(shoes_path, shoes[2])
 
-    img = image.load_img(img_path, target_size=(resolution,resolution,1), color_mode="grayscale")
+    img = image.load_img(img_path, target_size=(28,28,1), color_mode="grayscale")
     img = image.img_to_array(img)
     img = img/-255 #invert grayscale
-    
-    img = img.reshape(resolution,resolution)
+
+    img = img.reshape(28,28)
     plt.imshow(img, cmap="Greys")
 
+
 def make_generator_model():
+    # Might want to switch BNorm and LeakyReLu
     model = tf.keras.Sequential()
     model.add(Dense(7*7*256, use_bias=False, input_shape=(100,)))
     model.add(BatchNormalization())
-    model.add(LeakyReLU())
+    model.add(LeakyReLU(alpha=0.2))
     model.add(Reshape((7, 7, 256)))
     model.add(C2DT(128, (5, 5), strides=(1, 1), padding='same', use_bias=False))
     model.add(BatchNormalization())
-    model.add(LeakyReLU())
+    model.add(LeakyReLU(alpha=0.2))
     model.add(C2DT(64, (5, 5), strides=(2, 2), padding='same', use_bias=False))
     model.add(BatchNormalization())
-    model.add(LeakyReLU())
+    model.add(LeakyReLU(alpha=0.2))
     model.add(C2DT(1, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh'))
     assert model.output_shape == (None, 28, 28, 1)
+    print(model.summary())
     return model
 
 
 def make_discriminator_model():
     model = tf.keras.Sequential()
-    model.add(Conv2D(64, (5, 5), strides=(2, 2), padding='same', input_shape=(28, 28, 1)))
-    model.add(LeakyReLU())
-    model.add(Dropout(0.3))
-    model.add(Conv2D(128, (5, 5), strides=(2, 2), padding='same'))
-    model.add(LeakyReLU())
-    model.add(Dropout(0.3))
+    model.add(Conv2D(64, (4, 4), strides=(2, 2), padding='same', input_shape=(28, 28, 1)))
+    model.add(LeakyReLU(alpha=0.2))
+    model.add(Dropout(0.4))
+    model.add(Conv2D(128, (4, 4), strides=(2, 2), padding='same'))
+    model.add(LeakyReLU(alpha=0.2))
+    model.add(Dropout(0.4))
     model.add(Flatten())
-    model.add(Dense(1))
+    model.add(Dense(1, activation='sigmoid'))
+    print(model.summary())
     return model
 
 
@@ -157,7 +164,6 @@ def discriminator_loss(real_output, fake_output):
     real_loss = cross_entropy(tf.ones_like(real_output), real_output)
     fake_loss = cross_entropy(tf.zeros_like(fake_output), fake_output)
     total_loss = (real_loss * 0.9) + fake_loss
-    print("total:", total_loss)
     return total_loss
 
 
@@ -214,8 +220,7 @@ def train_forever(dataset):
 
             for image_batch in dataset:
                 train_step(image_batch)
-        
-            
+
             if (epoch + 1) % 10 == 0:
                 checkpoint.save(file_prefix = checkpoint_prefix)
 
@@ -246,10 +251,10 @@ def generate_and_save_images(model, epoch, seed):
     # Save generator model
     filename = '{}/generator_model_{:05d}.h5'.format(MODELS_FOLDER, epoch)
     model.save(filename)
-    
+
 if __name__ == '__main__':
 
-    train_dataset   = get_dataset(resolution=28)
+    train_dataset   = get_dataset()
     generator       = make_generator_model()
     discriminator   = make_discriminator_model()
 
