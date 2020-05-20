@@ -104,20 +104,20 @@ def make_generator_model():
     model = tf.keras.Sequential()
     # start with 4x4 image
     model.add(Dense(4*4*256, use_bias=False, input_dim=100))
-    model.add(BatchNormalization())
+    #model.add(BatchNormalization())
     model.add(LeakyReLU())
     model.add(Reshape((4, 4, 256)))
     # upsample to 8x8
     model.add(C2DT(128, (4, 4), strides=(2, 2), padding='same', use_bias=False))
-    model.add(BatchNormalization())
+    #model.add(BatchNormalization())
     model.add(LeakyReLU())
     # upsample to 16x16
     model.add(C2DT(128, (4, 4), strides=(2, 2), padding='same', use_bias=False))
-    model.add(BatchNormalization())
+    #model.add(BatchNormalization())
     model.add(LeakyReLU())
     # upsample to 32x32
     model.add(C2DT(128, (4, 4), strides=(2, 2), padding='same', use_bias=False))
-    model.add(BatchNormalization())
+    #model.add(BatchNormalization())
     model.add(LeakyReLU())
     # output layer
     model.add(Conv2D(3, (3,3), activation='tanh', padding='same'))
@@ -137,7 +137,7 @@ def make_discriminator_model():
     model.add(Conv2D(256, (3, 3), strides=(2, 2), padding='same'))
     model.add(LeakyReLU())
     model.add(Flatten())
-    model.add(Dropout(0.3))
+    model.add(Dropout(0.4))
     model.add(Dense(1, activation='sigmoid'))
     return model
 

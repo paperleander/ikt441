@@ -6,8 +6,10 @@ obj
 *.user
 __pycache__
 /Notes
-/__pycache__
+/project/__pycache__
 /.pynb_checkpoints
 /project/imgs
 /project/training_checkpoints
 /project/data
+/.ipynb_checkpoints
+/project/models

@@ -95,6 +95,7 @@ if not os.path.exists(IMAGE_PATH):
     os.mkdir(IMAGE_PATH)
 
 
+
 def make_generator_model():
     model = tf.keras.Sequential()
     model.add(Dense(7*7*256, use_bias=False, input_shape=(100,)))
