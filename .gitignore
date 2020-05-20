@@ -12,4 +12,5 @@ __pycache__
 /project/training_checkpoints
 /project/data
 .ipynb_checkpoints/
+.ipynb_checkpoints
 /project/models

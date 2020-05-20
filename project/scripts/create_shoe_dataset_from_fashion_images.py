@@ -39,7 +39,7 @@ def resize_img(img, res):
 #     height = int(img.shape[0] * scale_percent / 100)
     dim = (res, res)
     # resize image
-    resized = cv2.resize(img, dim)
+    resized = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
     return resized
 
 def process_and_save(img_path, save_path, res):
@@ -66,7 +66,7 @@ def create_dataset(new_path_res, res):
 
 if __name__ == "__main__":
         
-    resolutions = [28, 56]
+    resolutions = [28, 56, 60]
     
     # print info
     print("current working dir: {}".format(os.getcwd()))
@@ -88,13 +88,14 @@ if __name__ == "__main__":
     for res in resolutions:
         new_path_res = "{}-{}".format(new_path, str(res))
         
-        # create new folder
-        if os.path.exists(new_path_res):
-            print("[INFO] folder exists. skipping.")
-            continue
-        
-        print("[INFO] creating folder: {}".format(new_path))
-        os.mkdir(new_path_res)
+#         # create new folder
+#         if os.path.exists(new_path_res):
+#             print("[INFO] folder exists. skipping.")
+#             continue
+        if not os.path.exists(new_path_res):
+            print("[INFO] creating folder: {}".format(new_path))
+            os.mkdir(new_path_res)
+            
         try:
             create_dataset(new_path_res, res)    
         except Exception as e:
