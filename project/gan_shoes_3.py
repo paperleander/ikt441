@@ -91,7 +91,7 @@ if not os.path.exists(IMAGE_PATH):
 
 
 def get_dataset():
-    shoes_path = "data/fashion-shoes-28"
+    shoes_path = "data/fashion-shoes-56"
     shoes = os.listdir(shoes_path)
     images = []
     for k in shoes:
@@ -99,55 +99,42 @@ def get_dataset():
             continue
         img_path = os.path.join(shoes_path, k)
 
-        img = image.load_img(img_path, target_size=(28,28,1), color_mode="grayscale")
+        img = image.load_img(img_path, target_size=(56,56,1), color_mode="grayscale")
         img = image.img_to_array(img)
         images.append(img)
 
     images = np.asarray(images)
 
     print("Number of images:", images.shape)
-    train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
+    train_images = images.reshape(images.shape[0], 56, 56, 1).astype('float32')
     train_images = (train_images - 127.5) / 127.5 # Normalize the images to [-1, 1]
     dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
     return dataset
 
 
-def plot_image():
-    shoes_path = "data/fashion-shoes-28"
-    shoes = os.listdir(shoes_path)
-
-    img_path = os.path.join(shoes_path, shoes[2])
-
-    img = image.load_img(img_path, target_size=(28,28,1), color_mode="grayscale")
-    img = image.img_to_array(img)
-    img = img/-255 #invert grayscale
-
-    img = img.reshape(28,28)
-    plt.imshow(img, cmap="Greys")
-    plt.savefig('sample_image.png')
-    plt.close()
-
-
 def make_generator_model():
     model = tf.keras.Sequential()
-    model.add(Dense(7*7*256, use_bias=False, input_shape=(100,)))
-    model.add(Reshape((7, 7, 256)))
-    model.add(C2DT(128, (5, 5), strides=(1, 1), padding='same', use_bias=False))
+    model.add(Dense(7*7*32, use_bias=False, input_shape=(100,)))
+    model.add(Reshape((7, 7, 32)))
+    model.add(C2DT(128, (5, 5), strides=(2, 2), padding='same', use_bias=False))
     model.add(BatchNormalization(momentum=0.8))
     model.add(Activation("relu"))
     model.add(C2DT(64, (5, 5), strides=(2, 2), padding='same', use_bias=False))
     model.add(BatchNormalization(momentum=0.8))
     model.add(Activation("relu"))
+    #model.add(C2DT(32, (5, 5), strides=(2, 2), padding='same', use_bias=False))
+    #model.add(BatchNormalization(momentum=0.8))
+    #model.add(Activation("relu"))
     model.add(C2DT(1, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh'))
 
-    assert model.output_shape == (None, 28, 28, 1)
+    assert model.output_shape == (None, 56, 56, 1)
     print(model.summary())
     return model
 
 
 def make_discriminator_model():
     model = tf.keras.Sequential()
-    model.add(Conv2D(32, (3, 3), strides=(1, 1), padding='same', input_shape=(28, 28, 1)))
+    model.add(Conv2D(32, (3, 3), strides=(1, 1), padding='same', input_shape=(56, 56, 1)))
     model.add(LeakyReLU(alpha=0.2))
     model.add(Dropout(0.4))
     model.add(Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
@@ -158,44 +145,13 @@ def make_discriminator_model():
     model.add(BatchNormalization(momentum=0.8))
     model.add(LeakyReLU(alpha=0.2))
     model.add(Dropout(0.4))
-    model.add(Conv2D(256, (3, 3), strides=(1, 1), padding='same'))
-    model.add(BatchNormalization(momentum=0.8))
-    model.add(LeakyReLU(alpha=0.2))
-    model.add(Dropout(0.4))
+    #model.add(Conv2D(256, (3, 3), strides=(1, 1), padding='same'))
+    #model.add(BatchNormalization(momentum=0.8))
+    #model.add(LeakyReLU(alpha=0.2))
+    #model.add(Dropout(0.4))
     model.add(Flatten())
     model.add(Dense(1, activation='sigmoid'))
 
-    print(model.summary())
-    return model
-
-def dep_make_generator_model():
-    model = tf.keras.Sequential()
-    model.add(Dense(7*7*256, use_bias=False, input_shape=(100,)))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU(alpha=0.2))
-    model.add(Reshape((7, 7, 256)))
-    model.add(C2DT(128, (5, 5), strides=(1, 1), padding='same', use_bias=False))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU(alpha=0.2))
-    model.add(C2DT(64, (5, 5), strides=(2, 2), padding='same', use_bias=False))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU(alpha=0.2))
-    model.add(C2DT(1, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh'))
-    assert model.output_shape == (None, 28, 28, 1)
-    print(model.summary())
-    return model
-
-
-def dep_make_discriminator_model():
-    model = tf.keras.Sequential()
-    model.add(Conv2D(64, (4, 4), strides=(2, 2), padding='same', input_shape=(28, 28, 1)))
-    model.add(LeakyReLU(alpha=0.2))
-    model.add(Dropout(0.4))
-    model.add(Conv2D(128, (4, 4), strides=(2, 2), padding='same'))
-    model.add(LeakyReLU(alpha=0.2))
-    model.add(Dropout(0.4))
-    model.add(Flatten())
-    model.add(Dense(1, activation='sigmoid'))
     print(model.summary())
     return model
 
@@ -315,3 +271,4 @@ if __name__ == '__main__':
     #train(train_dataset, EPOCHS)
     train_forever(train_dataset)
     checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
+
