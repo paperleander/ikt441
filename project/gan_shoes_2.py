@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # NB!!!! NEEDS TWEAKING
+
 import tensorflow as tf
 print(tf.__version__)
 
@@ -30,6 +31,8 @@ from tensorflow.keras.losses import BinaryCrossentropy
 
 # from tensorflow.keras.datasets import mnist
 from tensorflow.keras.preprocessing import image
+
+import cv2
 
 #TODO:
 # Best architecture on 28x28 black/white
@@ -95,7 +98,7 @@ if not os.path.exists(LOSS_PATH):
 
 
 def get_dataset():
-    shoes_path = "data/fashion-shoes-28"
+    shoes_path = "data/fashion-shoes-sport-casual-28"
     shoes = os.listdir(shoes_path)
     images = []
     for k in shoes:
@@ -103,22 +106,27 @@ def get_dataset():
             continue
         img_path = os.path.join(shoes_path, k)
 
-        img = image.load_img(img_path, target_size=(28,28,1), color_mode="grayscale")
-        img = image.img_to_array(img)
+        #img = image.load_img(img_path, target_size=(28,28,3), color_mode="rgb")
+        # Reference: https://github.com/carpedm20/DCGAN-tensorflow/issues/162#issuecomment-315519747
+        img_bgr = cv2.imread(img_path)
+        # Reference: https://stackoverflow.com/a/15074748/
+        img_rgb = img_bgr[..., ::-1] # bgr2rgb
+        img = image.img_to_array(img_rgb)
         images.append(img)
 
     images = np.asarray(images)
 
     print("Number of images:", images.shape)
-    train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
+    train_images = images.reshape(images.shape[0], 28, 28, 3).astype('float32')
     train_images = (train_images - 127.5) / 127.5 # Normalize the images to [-1, 1]
+    print("min val: {}, max val: {}".format(np.min(train_images[0]), np.max(train_images[0])))
     dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
     return dataset
 
 
 def make_discriminator_model():
     model = tf.keras.Sequential()
-    model.add(Conv2D(32, 5, strides=2, padding='same', input_shape=(28, 28, 1)))
+    model.add(Conv2D(32, 5, strides=2, padding='same', input_shape=(28, 28, 3)))
     model.add(LeakyReLU(alpha=0.2))
     
     model.add(Conv2D(64, 5, strides=2, padding='same'))
@@ -157,11 +165,11 @@ def make_generator_model():
 #     model.add(BatchNormalization())
 #     model.add(LeakyReLU(alpha=0.2))
               
-    model.add(C2DT(1, 5, strides=2, padding='same', activation='tanh', kernel_initializer=init))
+    model.add(C2DT(3, 5, strides=2, padding='same', activation='tanh', kernel_initializer=init))
     
     print(model.summary())
               
-    assert model.output_shape == (None, 28, 28, 1)
+    assert model.output_shape == (None, 28, 28, 3)
     return model
 
 
@@ -266,7 +274,7 @@ def generate_and_save_images(model, epoch, seed):
 
     for i in range(predictions.shape[0]):
         plt.subplot(4, 4, i+1)
-        plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
+        plt.imshow((predictions[i, :, :, :] * 127.5 + 127.5) / 255.)
         plt.axis('off')
 
     plt.tight_layout()
@@ -292,7 +300,8 @@ if __name__ == '__main__':
 
     checkpoint = tf.train.Checkpoint(generator_otimizer=G_optimizer,
                                     discriminator_optimizer=D_optimizer,
-                                    generator=generator, discriminator=discriminator)
+                                    generator=generator, 
+                                    discriminator=discriminator)
 
     #train(train_dataset, EPOCHS)
     train_forever(train_dataset)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# NB!!!! NEEDS TWEAKING
+
 import tensorflow as tf
 print(tf.__version__)
 
@@ -31,6 +31,7 @@ from tensorflow.keras.losses import BinaryCrossentropy
 # from tensorflow.keras.datasets import mnist
 from tensorflow.keras.preprocessing import image
 
+import cv2
 #TODO:
 # Best architecture on 28x28 black/white
 # Colors on 28x28
@@ -89,13 +90,13 @@ if not os.path.exists(folder):
 if not os.path.exists(DATA_PATH):
     os.mkdir(DATA_PATH)
 if not os.path.exists(IMAGE_PATH):
-    os.mkdir(IMAGE_PATH)    
+    os.mkdir(IMAGE_PATH)   
 if not os.path.exists(LOSS_PATH):
     os.mkdir(LOSS_PATH)
 
 
 def get_dataset():
-    shoes_path = "data/fashion-shoes-28"
+    shoes_path = "data/fashion-shoes-sport-casual-56"
     shoes = os.listdir(shoes_path)
     images = []
     for k in shoes:
@@ -103,33 +104,41 @@ def get_dataset():
             continue
         img_path = os.path.join(shoes_path, k)
 
-        img = image.load_img(img_path, target_size=(28,28,1), color_mode="grayscale")
-        img = image.img_to_array(img)
+        #img = image.load_img(img_path, target_size=(28,28,3), color_mode="rgb")
+        # Reference: https://github.com/carpedm20/DCGAN-tensorflow/issues/162#issuecomment-315519747
+        img_bgr = cv2.imread(img_path)
+        # Reference: https://stackoverflow.com/a/15074748/
+        img_rgb = img_bgr[..., ::-1] # bgr2rgb
+        img = image.img_to_array(img_rgb)
         images.append(img)
 
     images = np.asarray(images)
 
     print("Number of images:", images.shape)
-    train_images = images.reshape(images.shape[0], 28, 28, 1).astype('float32')
+    train_images = images.reshape(images.shape[0], 56, 56, 3).astype('float32')
     train_images = (train_images - 127.5) / 127.5 # Normalize the images to [-1, 1]
+    print("min val: {}, max val: {}".format(np.min(train_images[0]), np.max(train_images[0])))
     dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
     return dataset
 
 
 def make_discriminator_model():
+    #  BN before ReLU: to adjust the values before they hit the activation function, so as to avoid the vanishing gradient problem.
     model = tf.keras.Sequential()
-    model.add(Conv2D(32, 5, strides=2, padding='same', input_shape=(28, 28, 1)))
+    
+    model.add(Conv2D(32, (5, 5), strides=(2, 2), padding='same', input_shape=(56, 56, 3)))
+#   model.add(BatchNormalization()) 
     model.add(LeakyReLU(alpha=0.2))
     
-    model.add(Conv2D(64, 5, strides=2, padding='same'))
+    model.add(Conv2D(64, (5, 5), strides=(2, 2), padding='same'))
     model.add(BatchNormalization())
     model.add(LeakyReLU(alpha=0.2))
     
-    model.add(Conv2D(128, 5, strides=2, padding='same'))
+    model.add(Conv2D(128, (5, 5), strides=(2, 2), padding='same'))
     model.add(BatchNormalization())
     model.add(LeakyReLU(alpha=0.2))
     
-    model.add(Conv2D(256, 5, strides=2, padding='same'))
+    model.add(Conv2D(256, (5, 5), strides=(2, 2), padding='same'))
     model.add(BatchNormalization())
     model.add(LeakyReLU(alpha=0.2))
     
@@ -141,28 +150,33 @@ def make_discriminator_model():
     return model
 
 def make_generator_model():
+    # changed activation func relu to leakyrelu. https://github.com/soumith/ganhacks#6-use-soft-and-noisy-labels tip #5
+    # add gaussian weight init
+    
     model = tf.keras.Sequential()
     init = RandomNormal(mean=0.0, stddev=0.02)
-
-    model.add(Dense(7*7*128, kernel_initializer=init, input_shape=(100,)))
-    model.add(Reshape((7, 7, 128)))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU(alpha=0.2))
-
-    model.add(C2DT(64, 5, strides=2, padding='same', kernel_initializer=init))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU(alpha=0.2))
-              
-#     model.add(C2DT(32, 5, strides=2, padding='same', kernel_initializer=init))
-#     model.add(BatchNormalization())
-#     model.add(LeakyReLU(alpha=0.2))
-              
-    model.add(C2DT(1, 5, strides=2, padding='same', activation='tanh', kernel_initializer=init))
     
+    model.add(Dense(7*7*128, kernel_initializer=init, input_shape=(100,)))
+    model.add(Reshape((7, 7, 128))) # prøv med 256
+    model.add(BatchNormalization())
+    model.add(LeakyReLU(alpha=0.2))
+
+    model.add(C2DT(64, (5, 5), strides=(2, 2), padding='same', kernel_initializer=init))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU(alpha=0.2))
+    
+    model.add(C2DT(32, (5, 5), strides=(2, 2), padding='same', kernel_initializer=init))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU(alpha=0.2))
+    
+    model.add(C2DT(3, (5, 5), strides=(2, 2), padding='same', activation='tanh', kernel_initializer=init))
+
     print(model.summary())
-              
-    assert model.output_shape == (None, 28, 28, 1)
+
+    assert model.output_shape == (None, 56, 56, 3)
+
     return model
+
 
 
 def discriminator_loss(real_output, fake_output):
@@ -201,11 +215,12 @@ def train_step(images):
 
 
 # def train(dataset, epochs):
+    
 #     for epoch in range(epochs):
 #         start = time.time()
 
 #         for image_batch in dataset:
-#             gen_loss, disc_loss = train_step(image_batch)
+#             gen_loss, disc_loss = train_step(image_batch) # append loss to a list for plotting https://www.kaggle.com/sayakdasgupta/fake-faces-with-dcgans
 
 #         display.clear_output(wait=True)
 #         generate_and_save_images(generator, epoch + 1, seed)
@@ -239,7 +254,6 @@ def train_forever(dataset):
                 generate_and_save_images(generator, epoch + 1, seed)
                 save_loss_curves(G_loss_list, D_loss_list)
 
-
             print ('epoch {: 3} took {:.4f} sec, with {:.4f} gen_loss and {:.4f} disc_loss'.format(epoch + 1, time.time()-start, gen_loss, disc_loss))
             epoch += 1
     except KeyboardInterrupt:
@@ -247,7 +261,6 @@ def train_forever(dataset):
         display.clear_output(wait=True)
         generate_and_save_images(generator, epoch + 2, seed)
 
-              
 def save_loss_curves(G_loss_list, D_loss_list):
     plt.figure(figsize=(10,10))
     plt.plot(G_loss_list,color='red',label='Generator_loss')
@@ -257,8 +270,8 @@ def save_loss_curves(G_loss_list, D_loss_list):
     plt.ylabel('loss')
     plt.title('Model loss per batch')
     plt.savefig("{}/loss_{}.png".format(LOSS_PATH, now))
-              
-              
+        
+        
 def generate_and_save_images(model, epoch, seed):
     predictions = model(seed, training=False)
 
@@ -266,7 +279,7 @@ def generate_and_save_images(model, epoch, seed):
 
     for i in range(predictions.shape[0]):
         plt.subplot(4, 4, i+1)
-        plt.imshow(predictions[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
+        plt.imshow((predictions[i, :, :, :] * 127.5 + 127.5) / 255.)
         plt.axis('off')
 
     plt.tight_layout()
@@ -279,7 +292,6 @@ def generate_and_save_images(model, epoch, seed):
 
 
 if __name__ == '__main__':
-
     train_dataset   = get_dataset()
     generator       = make_generator_model()
     discriminator   = make_discriminator_model()
@@ -290,9 +302,10 @@ if __name__ == '__main__':
     G_optimizer = Adam(learning_rate=0.0002, beta_1=0.5)
     D_optimizer = Adam(learning_rate=0.0002, beta_1=0.5)
 
-    checkpoint = tf.train.Checkpoint(generator_otimizer=G_optimizer,
+    checkpoint = tf.train.Checkpoint(generator_optimizer=G_optimizer,
                                     discriminator_optimizer=D_optimizer,
-                                    generator=generator, discriminator=discriminator)
+                                    generator=generator,
+                                    discriminator=discriminator)
 
     #train(train_dataset, EPOCHS)
     train_forever(train_dataset)

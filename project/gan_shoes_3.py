@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import tensorflow as tf
-tf.__version__
+print(tf.__version__)
 
 import glob
 import imageio
@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import sys
-import PIL
 import time
 import datetime
 from IPython import display
@@ -25,12 +24,14 @@ from tensorflow.keras.layers import Conv2D
 from tensorflow.keras.layers import Dropout
 from tensorflow.keras.layers import Flatten
 
+from tensorflow.keras.initializers import RandomNormal
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import BinaryCrossentropy
 
-from tensorflow.keras.datasets import mnist
+# from tensorflow.keras.datasets import mnist
 from tensorflow.keras.preprocessing import image
 
+import cv2
 #TODO:
 # Best architecture on 28x28 black/white
 # Colors on 28x28
@@ -66,6 +67,7 @@ BATCH_SIZE = 128
 DATA_PATH = "data"
 IMAGE_PATH = "imgs"
 MODELS_PATH = "models"
+LOSS_PATH = "loss"
 
 
 ### INIT ###
@@ -73,6 +75,7 @@ seed = tf.random.normal([NUM_EXAMPLES, NOISE_DIM])
 now = datetime.datetime.now().strftime("%d%H%M%S")
 folder = os.path.join(IMAGE_PATH, now)
 MODELS_FOLDER = os.path.join(MODELS_PATH, now)
+LOSS_FOLDER = os.path.join(LOSS_PATH, now)
 
 checkpoint_dir = './training_checkpoints'
 checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
@@ -87,7 +90,9 @@ if not os.path.exists(folder):
 if not os.path.exists(DATA_PATH):
     os.mkdir(DATA_PATH)
 if not os.path.exists(IMAGE_PATH):
-    os.mkdir(IMAGE_PATH)    
+    os.mkdir(IMAGE_PATH)   
+if not os.path.exists(LOSS_PATH):
+    os.mkdir(LOSS_PATH)
 
 
 def get_dataset():
@@ -111,49 +116,61 @@ def get_dataset():
     dataset = tf.data.Dataset.from_tensor_slices(train_images).shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
     return dataset
 
-
-def make_generator_model():
-    model = tf.keras.Sequential()
-    model.add(Dense(7*7*32, use_bias=False, input_shape=(100,)))
-    model.add(Reshape((7, 7, 32)))
-    model.add(C2DT(128, (5, 5), strides=(2, 2), padding='same', use_bias=False))
-    model.add(BatchNormalization(momentum=0.8))
-    model.add(Activation("relu"))
-    model.add(C2DT(64, (5, 5), strides=(2, 2), padding='same', use_bias=False))
-    model.add(BatchNormalization(momentum=0.8))
-    model.add(Activation("relu"))
-    #model.add(C2DT(32, (5, 5), strides=(2, 2), padding='same', use_bias=False))
-    #model.add(BatchNormalization(momentum=0.8))
-    #model.add(Activation("relu"))
-    model.add(C2DT(1, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh'))
-
-    assert model.output_shape == (None, 56, 56, 1)
-    print(model.summary())
-    return model
-
-
 def make_discriminator_model():
+    #  BN before ReLU: to adjust the values before they hit the activation function, so as to avoid the vanishing gradient problem.
     model = tf.keras.Sequential()
-    model.add(Conv2D(32, (3, 3), strides=(1, 1), padding='same', input_shape=(56, 56, 1)))
+    
+    model.add(Conv2D(32, (5, 5), strides=(2, 2), padding='same', input_shape=(56, 56, 1)))
+#   model.add(BatchNormalization()) 
     model.add(LeakyReLU(alpha=0.2))
-    model.add(Dropout(0.4))
-    model.add(Conv2D(64, (3, 3), strides=(2, 2), padding='same'))
-    model.add(BatchNormalization(momentum=0.8))
+    
+    model.add(Conv2D(64, (5, 5), strides=(2, 2), padding='same'))
+    model.add(BatchNormalization())
     model.add(LeakyReLU(alpha=0.2))
-    model.add(Dropout(0.4))
-    model.add(Conv2D(128, (3, 3), strides=(2, 2), padding='same'))
-    model.add(BatchNormalization(momentum=0.8))
+    
+    model.add(Conv2D(128, (5, 5), strides=(2, 2), padding='same'))
+    model.add(BatchNormalization())
     model.add(LeakyReLU(alpha=0.2))
-    model.add(Dropout(0.4))
-    #model.add(Conv2D(256, (3, 3), strides=(1, 1), padding='same'))
-    #model.add(BatchNormalization(momentum=0.8))
-    #model.add(LeakyReLU(alpha=0.2))
-    #model.add(Dropout(0.4))
+    
+    model.add(Conv2D(256, (5, 5), strides=(2, 2), padding='same'))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU(alpha=0.2))
+    
     model.add(Flatten())
+    model.add(Dropout(0.4))
     model.add(Dense(1, activation='sigmoid'))
 
     print(model.summary())
     return model
+
+def make_generator_model():
+    # changed activation func relu to leakyrelu. https://github.com/soumith/ganhacks#6-use-soft-and-noisy-labels tip #5
+    # add gaussian weight init
+    
+    model = tf.keras.Sequential()
+    init = RandomNormal(mean=0.0, stddev=0.02)
+    
+    model.add(Dense(7*7*128, kernel_initializer=init, input_shape=(100,)))
+    model.add(Reshape((7, 7, 128))) # prøv med 256
+    model.add(BatchNormalization())
+    model.add(LeakyReLU(alpha=0.2))
+
+    model.add(C2DT(64, (5, 5), strides=(2, 2), padding='same', kernel_initializer=init))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU(alpha=0.2))
+    
+    model.add(C2DT(32, (5, 5), strides=(2, 2), padding='same', kernel_initializer=init))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU(alpha=0.2))
+    
+    model.add(C2DT(1, (5, 5), strides=(2, 2), padding='same', activation='tanh', kernel_initializer=init))
+
+    print(model.summary())
+
+    assert model.output_shape == (None, 56, 56, 1)
+
+    return model
+
 
 
 def discriminator_loss(real_output, fake_output):
@@ -191,26 +208,29 @@ def train_step(images):
     return gen_loss, disc_loss
 
 
-def train(dataset, epochs):
-    for epoch in range(epochs):
-        start = time.time()
+# def train(dataset, epochs):
+    
+#     for epoch in range(epochs):
+#         start = time.time()
 
-        for image_batch in dataset:
-            gen_loss, disc_loss = train_step(image_batch)
+#         for image_batch in dataset:
+#             gen_loss, disc_loss = train_step(image_batch) # append loss to a list for plotting https://www.kaggle.com/sayakdasgupta/fake-faces-with-dcgans
 
-        display.clear_output(wait=True)
-        generate_and_save_images(generator, epoch + 1, seed)
+#         display.clear_output(wait=True)
+#         generate_and_save_images(generator, epoch + 1, seed)
 
-        if (epoch + 1) % 15 == 0:
-            checkpoint.save(file_prefix = checkpoint_prefix)
+#         if (epoch + 1) % 15 == 0:
+#             checkpoint.save(file_prefix = checkpoint_prefix)
 
-        print ('Time for epoch {} is {} sec'.format(epoch + 1, time.time()-start))
+#         print ('Time for epoch {} is {} sec'.format(epoch + 1, time.time()-start))
 
-    display.clear_output(wait=True)
-    generate_and_save_images(generator, epochs, seed)
+#     display.clear_output(wait=True)
+#     generate_and_save_images(generator, epochs, seed)
 
 
 def train_forever(dataset):
+    G_loss_list = []
+    D_loss_list = []
     epoch = 0
     try:
         while(True):
@@ -218,12 +238,15 @@ def train_forever(dataset):
 
             for image_batch in dataset:
                 gen_loss, disc_loss = train_step(image_batch)
+                G_loss_list.append(gen_loss)
+                D_loss_list.append(disc_loss)
 
             if (epoch + 1) % 10 == 0:
                 checkpoint.save(file_prefix = checkpoint_prefix)
 
                 display.clear_output(wait=True)
                 generate_and_save_images(generator, epoch + 1, seed)
+                save_loss_curves(G_loss_list, D_loss_list)
 
             print ('epoch {: 3} took {:.4f} sec, with {:.4f} gen_loss and {:.4f} disc_loss'.format(epoch + 1, time.time()-start, gen_loss, disc_loss))
             epoch += 1
@@ -232,7 +255,17 @@ def train_forever(dataset):
         display.clear_output(wait=True)
         generate_and_save_images(generator, epoch + 2, seed)
 
-
+def save_loss_curves(G_loss_list, D_loss_list):
+    plt.figure(figsize=(10,10))
+    plt.plot(G_loss_list,color='red',label='Generator_loss')
+    plt.plot(D_loss_list,color='blue',label='Discriminator_loss')
+    plt.legend()
+    plt.xlabel('total batches')
+    plt.ylabel('loss')
+    plt.title('Model loss per batch')
+    plt.savefig("{}/loss_{}.png".format(LOSS_PATH, now))
+        
+        
 def generate_and_save_images(model, epoch, seed):
     predictions = model(seed, training=False)
 
@@ -253,22 +286,21 @@ def generate_and_save_images(model, epoch, seed):
 
 
 if __name__ == '__main__':
-
     train_dataset   = get_dataset()
     generator       = make_generator_model()
     discriminator   = make_discriminator_model()
 
-    cross_entropy = BinaryCrossentropy(from_logits=True)
+    cross_entropy = BinaryCrossentropy()
 
     # learningrate started at 1e-4
-    G_optimizer = Adam(0.00001)
-    D_optimizer = Adam(0.00004)
+    G_optimizer = Adam(learning_rate=0.0002, beta_1=0.5)
+    D_optimizer = Adam(learning_rate=0.0002, beta_1=0.5)
 
-    checkpoint = tf.train.Checkpoint(generator_otimizer=G_optimizer,
+    checkpoint = tf.train.Checkpoint(generator_optimizer=G_optimizer,
                                     discriminator_optimizer=D_optimizer,
-                                    generator=generator, discriminator=discriminator)
+                                    generator=generator,
+                                    discriminator=discriminator)
 
     #train(train_dataset, EPOCHS)
     train_forever(train_dataset)
     checkpoint.restore(tf.train.latest_checkpoint(checkpoint_dir))
-
