@@ -249,7 +249,7 @@ def train_forever(dataset):
 
               
 def save_loss_curves(G_loss_list, D_loss_list):
-    plt.figure(figsize=(10,10))
+    fig = plt.figure(figsize=(10,10))
     plt.plot(G_loss_list,color='red',label='Generator_loss')
     plt.plot(D_loss_list,color='blue',label='Discriminator_loss')
     plt.legend()
@@ -257,6 +257,7 @@ def save_loss_curves(G_loss_list, D_loss_list):
     plt.ylabel('loss')
     plt.title('Model loss per batch')
     plt.savefig("{}/loss_{}.png".format(LOSS_PATH, now))
+    plt.close(fig)
               
               
 def generate_and_save_images(model, epoch, seed):
@@ -290,7 +291,7 @@ if __name__ == '__main__':
     G_optimizer = Adam(learning_rate=0.0002, beta_1=0.5)
     D_optimizer = Adam(learning_rate=0.0002, beta_1=0.5)
 
-    checkpoint = tf.train.Checkpoint(generator_otimizer=G_optimizer,
+    checkpoint = tf.train.Checkpoint(generator_optimizer=G_optimizer,
                                     discriminator_optimizer=D_optimizer,
                                     generator=generator, discriminator=discriminator)
 

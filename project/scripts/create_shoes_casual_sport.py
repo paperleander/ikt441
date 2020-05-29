@@ -17,6 +17,7 @@ new_path = "../data/fashion-shoes-sport-casual"
 
 
 def crop(img):
+    """Crop image to the minimum length and center the image"""
     img_shape = img.shape[:2]
     max_len = max(img_shape) # 80
     min_len = min(img_shape) # 60
@@ -32,11 +33,8 @@ def crop(img):
     
     return img[:, min_d:max_d]
 
-
 def resize_img(img, res):
-#     scale_percent = 48 # percent of original size
-#     width = int(img.shape[1] * scale_percent / 100)
-#     height = int(img.shape[0] * scale_percent / 100)
+    """Resize image to (res, res)"""
     dim = (res, res)
     # resize image
     resized = cv2.resize(img, dim, interpolation = cv2.INTER_AREA)
@@ -49,24 +47,20 @@ def process_and_save(img_path, save_path, res):
     cv2.imwrite(save_path, img)    
 
 def create_dataset(new_path_res, res):
-    # extract shoes from csv
+    """extract shoes by using the csv file"""
     df = pd.read_csv(styles_path, error_bad_lines=False)
     df['image'] = df.apply(lambda row: str(row['id']) + ".jpg", axis=1)
     shoes_list = df[(df["articleType"] == "Casual Shoes") | (df["articleType"] == "Sports Shoes")]["image"].tolist()
 
     # process images
     for shoe in tqdm(shoes_list, desc='copying images'):
-#         from_path = os.path.join(images_path, shoe)
-#         to_path = os.path.join(new_path, shoe)
-#         print("copy {}".format(shoe))
-#         shutil.copy(from_path, to_path)
         img_path = os.path.join(images_path, shoe)
         save_path = os.path.join(new_path_res, shoe)
         process_and_save(img_path, save_path, res)
 
 if __name__ == "__main__":
         
-    resolutions = [28, 56, 60]
+    resolutions = [28, 56]
     
     # print info
     print("current working dir: {}".format(os.getcwd()))
@@ -88,10 +82,6 @@ if __name__ == "__main__":
     for res in resolutions:
         new_path_res = "{}-{}".format(new_path, str(res))
         
-#         # create new folder
-#         if os.path.exists(new_path_res):
-#             print("[INFO] folder exists. skipping.")
-#             continue
         if not os.path.exists(new_path_res):
             print("[INFO] creating folder: {}".format(new_path))
             os.mkdir(new_path_res)

@@ -5,15 +5,15 @@ import imageio
 import glob
 from IPython import display
 
-image_folder = "imgs"
+image_folder = "../imgs"
 
 def create_gif():
-    folders = sorted(os.listdir("{}/".format(image_folder)))
+    folders = sorted(os.listdir("../{}/".format(image_folder)))
     newest = folders[-1]
-    anim_file = "gifs/{}.gif".format(newest)
+    anim_file = "../gifs/{}.gif".format(newest)
 
     with imageio.get_writer(anim_file, mode='I') as writer:
-        filenames = glob.glob('{}/{}/*.png'.format(image_folder, newest))
+        filenames = glob.glob('../{}/{}/*.png'.format(image_folder, newest))
         filenames = sorted(filenames)
         last = -1
         for i,filename in enumerate(filenames):

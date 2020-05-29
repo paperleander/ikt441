@@ -298,7 +298,7 @@ if __name__ == '__main__':
     G_optimizer = Adam(learning_rate=0.0002, beta_1=0.5)
     D_optimizer = Adam(learning_rate=0.0002, beta_1=0.5)
 
-    checkpoint = tf.train.Checkpoint(generator_otimizer=G_optimizer,
+    checkpoint = tf.train.Checkpoint(generator_optimizer=G_optimizer,
                                     discriminator_optimizer=D_optimizer,
                                     generator=generator, 
                                     discriminator=discriminator)
